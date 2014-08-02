@@ -1,0 +1,4 @@
+development:
+    driver: mymysql
+    open: $DATABASE_URL_GOOSE
+#    open: tcp:127.0.0.1:3306*mizumanju/root/rootpassword
