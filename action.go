@@ -160,6 +160,59 @@ func getUserImage(w http.ResponseWriter, r *http.Request, p params) ([]byte, err
 	return img, err
 }
 
+// putMyStatus は /api/users/me/status へのリクエストを処理する関数。
+// ユーザステータスを保存する。
+func putMyStatus(w http.ResponseWriter, r *http.Request, p params) (b []byte, err error) {
+	user, ok := context.Get(r, userkey).(*User)
+	if !ok {
+		err = errors.New("Server Error")
+		log.Println(err)
+		return
+	}
+
+	param, ok := p.(*statusParams)
+	if !ok {
+		err = fmt.Errorf("Expected *statusParams, but actual is %T", p)
+		log.Println(err)
+		return
+	}
+
+	err = UpdateUserStatus(r, user.Id, param.Status)
+	if err != nil {
+		return
+	}
+
+	b, err = json.Marshal(NewResponse("OK", nil))
+	if err != nil {
+		return
+	}
+	return b, nil
+}
+
+// getUserStatus は /api/users/{id:[0-9]+}/status へのリクエストを処理する関数。
+// ユーザステータスを配信する。
+func getUserStatus(w http.ResponseWriter, r *http.Request, p params) (b []byte, err error) {
+
+	vars := mux.Vars(r)
+	id, err := strconv.ParseInt(vars["id"], 10, 32)
+	if err != nil {
+		log.Println(err)
+		return nil, ErrBadRequest
+	}
+
+	u, err := FindUserStatusByUserId(r, int32(id))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	b, err = json.Marshal(NewResponse(nil, &u))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	return
+}
+
 // handleDelUser は /api/users/{id:[0-9]+} への DELETE リクエストを処理する関数。
 // ユーザを削除する。自分は削除できない
 func deleteUser(w http.ResponseWriter, r *http.Request, p params) (b []byte, err error) {

@@ -10,6 +10,11 @@ type imageParams struct {
 	Image string
 }
 
+// statusParams は /api/users/me/status のリクエストパラメタを表す構造体。
+type statusParams struct {
+	Status string
+}
+
 // recoveryRequestParams は /api/recovery のリクエストパラメタを表す構造体
 type recoveryRequestParams struct {
 	Email string `json:"email"`

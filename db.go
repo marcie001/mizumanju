@@ -41,6 +41,12 @@ type User struct {
 	Created     time.Time `json:"created"`
 }
 
+type UserStatus struct {
+	UserId  int32     `json:"userId"`
+	Status  string    `json:"status"`
+	Updated time.Time `json:"updated"`
+}
+
 // context に登録するキー
 type key int32
 
@@ -59,6 +65,8 @@ const (
 	sqlFindByEmail string = "SELECT id, name, voice_chat_id, role, password, email, created FROM users WHERE email = ? AND delete_flag = false"
 	// ユーザ取得
 	sqlFindById string = "SELECT id, name, voice_chat_id, role, auth_id, email, created FROM users WHERE id = ? AND delete_flag = false"
+	// ユーザステータス取得
+	sqlFindUserStatusByUserId string = "SELECT user_id, status, updated FROM user_status WHERE user_id = ?"
 	// 表示設定取得 SQL
 	sqlFindDisplay string = "SELECT u.id, u.name, u.voice_chat_id, CASE WHEN uds.hide IS NULL THEN false ELSE uds.hide END, CASE WHEN uds.order_no IS NULL THEN -1 ELSE uds.order_no END FROM users u LEFT OUTER JOIN user_display_settings uds ON u.id = uds.target_user_id AND uds.user_id = ? WHERE u.id <> ? AND u.delete_flag = false ORDER BY uds.order_no, u.id DESC"
 	// 表示設定登録/更新 SQL
@@ -73,6 +81,8 @@ const (
 	sqlDeleteUserPasswdRecovery string = "DELETE FROM user_password_recovery WHERE id = ?"
 	// ユーザ更新 SQL
 	sqlUpdateUser string = "UPDATE users SET name = ?, voice_chat_id = ?, role = ?, email = ?, delete_flag = ? WHERE id = ?"
+	// ユーザステータス更新 SQL
+	sqlUpdateUserStatus string = "INSERT INTO user_status (user_id, status, updated) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE status = ?, updated =?"
 	// ユーザ削除 SQL
 	sqlDeleteUser string = "UPDATE users SET delete_flag = true, password = '', email = '' WHERE id = ?"
 	// パスワード変更 SQL
@@ -245,6 +255,22 @@ func FindUserById(r *http.Request, id int32) (u User, err error) {
 // findUserById は id でユーザ情報を取得する関数
 func findUserById(r *http.Request, tx *sql.Tx, id int32) (u User, err error) {
 	err = tx.QueryRow(sqlFindById, id).Scan(&u.Id, &u.Name, &u.VoiceChatID, &u.Role, &u.AuthId, &u.Email, &u.Created)
+	return
+}
+
+// FindUserStatusByUserId は userId でユーザステータスを取得する関数
+func FindUserStatusByUserId(r *http.Request, userId int32) (u UserStatus, err error) {
+
+	db, ok := context.Get(r, dbkey).(*sql.DB)
+	if !ok {
+		err = errors.New("DB instance not found.")
+		return
+	}
+
+	err = db.QueryRow(sqlFindUserStatusByUserId, userId).Scan(&u.UserId, &u.Status, &u.Updated)
+	if err != nil {
+		return
+	}
 	return
 }
 
@@ -486,6 +512,36 @@ func UpdateUser(r *http.Request, user User) (User, error) {
 		log.Println(cnt)
 	}
 	return user, nil
+}
+
+// UpdateUserStatus はユーザステータスを更新する関数
+func UpdateUserStatus(r *http.Request, userId int32, status string) error {
+	db, ok := context.Get(r, dbkey).(*sql.DB)
+	if !ok {
+		err := errors.New("DB instance not found.")
+		return err
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		} else {
+			err = tx.Commit()
+		}
+	}()
+	now := time.Now()
+	rslt, err := tx.Exec(sqlUpdateUserStatus, userId, status, now, status, now)
+	if err != nil {
+		return err
+	}
+	if _, err := rslt.RowsAffected(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // UpdatePasswordByRecoveryKey はパスワードを変更する関数
